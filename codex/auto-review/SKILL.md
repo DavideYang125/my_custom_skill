@@ -1,56 +1,84 @@
 ---
 name: auto-review
-description: Iterative code review cycle. Use when the user says "继续 review", "auto review", "继续审查", or asks to continue a review cycle. Automates reading fix summaries, verifying fixes in actual code, tracking unresolved issues, and writing the next review document.
+description: 迭代式代码审查循环。当用户说"继续 review"、"auto review"、"继续审查"时触发。自动轮询检测修复总结文件，读取并审查代码，输出下一轮 Review 文档。
 ---
 
-# Auto Review
+# Auto Review 迭代代码审查
 
-Iterative code review cycle: read fix summary → verify code → find new issues → write next review.
+自动轮询检测修复总结 → 审查代码 → 输出下一轮 Review。
 
-## Workflow
+## 触发条件
 
-### 1. Determine current round
-- Scan the `review/` directory in the current project for the highest-numbered `第N次Review.md`
-- Set current round to N
-- If no review files exist, tell the user to create the first review manually or provide the initial commit range
+用户说以下任一指令时触发：
+- `继续 review`
+- `auto review`
+- `继续审查`
 
-### 2. Check if fix summary is ready
-- Check for `review/第N次Review修复总结.md`
-- If not found, tell the user: `第N次Review修复总结.md has not been created yet. Please fix the issues and write the fix summary first.`
-- If the file exists but was modified less than 15 seconds ago, wait until 15 seconds have passed since last modification (indicates writing is still in progress)
+## 工作流程
 
-### 3. Execute review
+### 1. 确定当前轮次
 
-#### 3.1 Read fix summary
-- Fully read `review/第N次Review修复总结.md`
-- Record all fixed and unfixed issues
+- 扫描当前项目的 `review/` 目录
+- 找到编号最大的 `第N次Review.md`
+- 设当前轮次为 N
+- 如果没有 Review 文件，告诉用户需要先手动创建第一次 Review
 
-#### 3.2 Verify fixed code
-- Read each actual code file listed in the fix summary
-- Verify each fix is correctly implemented
-- Flag incomplete fixes or new issues introduced by fixes
-- Reference specific file paths and line numbers
+### 2. 轮询检测修复总结
 
-#### 3.3 Check unfixed issues
-- For issues marked "unfixed" in previous rounds, check if they still exist in current code
-- Update assessment if situation has changed
+- 检查 `review/第N次Review修复总结.md` 是否存在
+- **如果不存在**：进入轮询等待模式
+  - 每 30 秒检测一次文件是否出现
+  - 每次检测时向用户报告等待状态（如"等待修复总结... (已等待 XX 秒)"）
+  - 持续轮询，直到文件出现
+  - **如果用户中途说"停止"或"不用等了"，立即停止轮询**
+- **如果文件已存在但最后修改时间距今不足 15 秒**：等待直到超过 15 秒（确保写入完成）
+- **如果文件已存在且稳定**：直接进入审查
 
-#### 3.4 Find new issues
-- Read through all modified code files to find new bugs, logic errors, security issues
-- Check for missed fixes or inconsistencies
+### 3. 执行审查
 
-### 4. Write output
-- Write results to `review/第N+1次Review.md`
-- Follow consistent format:
-  - **一、上一次 Review 修复验证** (verified fixes / incomplete fixes)
-  - **二、新发现的问题** (categorized by severity)
-  - **三、未修复问题追踪表** (tracking table)
-  - **四、总结** (summary with prioritized fix suggestions)
+#### 3.1 阅读修复总结
+- 完整阅读 `review/第N次Review修复总结.md`
+- 记录所有已修复和未修复的问题
 
-### 5. Guidelines
-- Always read actual code — do not rely solely on fix summary descriptions
-- Cite specific file paths and line numbers for every finding
-- Severity levels: 🔴 高 (high) / ⚠️ 中 (medium) / ⚠️ 低 (low)
-- Be objective: mark fixes as ✅ when correct; do not fabricate issues
-- If code quality is already good with no new issues, state the positive conclusion directly — do not force findings
-- Track unresolved issues across rounds in a table format
+#### 3.2 审查已修复的代码
+- 根据修复总结中列出的修复文件清单，逐一阅读实际代码文件
+- 验证每个修复是否正确实现
+- 标记修复不彻底或引入新问题的情况
+- 引用具体的文件路径和行号
+
+#### 3.3 检查未修复问题
+- 对前几轮 Review 中标记为"未修复"的问题，检查当前代码是否仍然存在
+- 如果问题恶化或有新变化，更新评估
+
+#### 3.4 查找新问题
+- 通读修复涉及的代码文件，查找新引入的 bug、逻辑错误、安全问题
+- 检查是否有遗漏的修复
+
+### 4. 输出结果
+
+- 将审查结果写入 `review/第N+1次Review.md`
+- 文件格式：
+  - **一、上一次 Review 修复验证**（已修复 / 修复不彻底）
+  - **二、新发现的问题**（按严重度分级）
+  - **三、未修复问题追踪表**
+  - **四、总结**（含优先修复建议）
+
+### 5. 审查完成后
+
+- 告知用户第 N+1 轮 Review 已完成
+- 提示用户：写好 `第N+1次Review修复总结.md` 后说"继续 review"进入下一轮
+- **如果代码质量已经足够好，直接给出正面结论，不必强行编造问题**
+
+### 6. 连续模式（可选）
+
+如果用户说"auto review 循环"或"持续 review"，则审查完成后不退出，而是：
+- 自动回到步骤 2，轮询等待下一轮修复总结
+- 持续循环，直到用户说"停止"
+
+## 注意事项
+
+- 审查时要阅读实际代码，不要仅依赖修复总结的描述
+- 对每个修复验证要引用具体的文件路径和行号
+- 严重度分级：🔴 高 / ⚠️ 中 / ⚠️ 低
+- 保持客观，修复正确就标记 ✅
+- 如果代码质量已经足够好，没有新问题，直接给出正面结论

@@ -1,14 +1,15 @@
 # 自动化修复 Review
 
-当用户说"自动化修复review"或执行 `/auto-fix-review` 时，执行以下流程：
+当用户说"自动化修复review"、"auto review fix"或执行 `/auto-fix-review` 时，执行以下流程：
 
 ## 首次执行
 
 1. 扫描项目根目录下的 `review/` 目录（如不存在则扫描 `reivew/`）
 2. 找出所有 `第X次Review.md` 文件
 3. 对比是否有对应的 `第X次Review修复总结.md`
-4. 对未处理的 Review 文件：读取 → 修复 → 写入修复总结
-5. 输出修复摘要
+4. 对未处理的 Review 文件：读取 → 判断是否需要处理
+5. 若 Review 中 🔴高严重度 和 ⚠️中严重度 问题均为 0（确认轮/无新问题），跳过不写修复总结，并自动停止轮询（CronDelete）
+6. 有需要修复的问题 → 修复 → 写入修复总结 → 输出修复摘要
 
 ## 持续监控
 
@@ -20,7 +21,7 @@ ScheduleWakeup(delaySeconds=60, reason="轮询新 Review 文件", prompt="自动
 
 每次唤醒时：
 1. 扫描是否有新的 Review 文件
-2. 有新文件 → 处理并输出摘要
+2. 有新文件 → 判断是否有 🔴高/⚠️中 问题 → 有则修复并输出摘要，无则跳过并自动停止轮询
 3. 无新文件 → 静默，再次 ScheduleWakeup 60 秒后唤醒
 
 用户说"停止监控"时，不再 ScheduleWakeup，结束轮询。
@@ -57,3 +58,4 @@ ScheduleWakeup(delaySeconds=60, reason="轮询新 Review 文件", prompt="自动
 
 - 无新文件时不做任何输出
 - 修复后输出摘要即可，不需要用户确认
+- 遇到确认轮（无 🔴高/⚠️中 问题）时自动停止轮询，输出提示后结束
